@@ -1,0 +1,38 @@
+# Experiment outputs
+xp/experiments/
+
+# Generated compose files
+xp/config/docker-compose-alloy.yml
+xp/config/envoy*.yml
+
+# Jupyter
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Rust build artifacts
+target/
+envoy/target/
+**/*.wasm
+
+# Docker image tarballs
+images/*.tar.gz
+images/*.tar
+
+# Java artifacts
+*.jar
+
+# Generated Alloy plan
+**/config/alloy_plan.yaml
+**/config/alloy_plan.json
+
+# Secrets / local config
+.env
+*.local

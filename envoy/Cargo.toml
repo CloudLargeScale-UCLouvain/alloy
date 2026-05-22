@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = [
+    "src/alloy",
+    "src/kafka_alloy",
+    "src/routing",
+]
+exclude = [
+    "lib/kafka-protocol-rs",
+    "lib/proxy-wasm-rust-sdk",
+]
+[profile.dev]
+lto = "fat"
+
+[profile.release]
+opt-level = 3
+debug = 0
+lto = "fat"
+panic = "abort"

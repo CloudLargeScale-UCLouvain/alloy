@@ -1,0 +1,5 @@
+enoslib==9.2.0
+tqdm==4.66.2
+pandas==2.2.2
+prometheus_pandas==0.3.3
+import_ipynb==0.1.4

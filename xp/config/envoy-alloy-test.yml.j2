@@ -1,0 +1,69 @@
+node:
+  cluster: {{ envoy_id }}
+  id: {{ envoy_id }}
+  
+admin:
+  access_log_path: "/dev/null"
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 8001
+
+static_resources:
+  listeners:
+  - name: listener_alloy
+    address:
+      socket_address:
+        protocol: TCP
+        address: 0.0.0.0
+        port_value: 9093
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.wasm
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.wasm.v3.Wasm
+          config:
+            name: "alloy"
+            root_id: "alloy"
+            configuration: 
+              "@type": type.googleapis.com/google.protobuf.StringValue
+              value: |
+                workload_type: kafka-alloy
+                type_proxy: direct
+                default_cluster: grpc-bridge-edge1
+                local_cluster: grpc-bridge-edge1
+                additional_configuration:
+                  max_parallelism: 128
+                  debug_protocol: 0
+                  remove_empty_records: true
+                  period_virtual_partition: 500
+                  fetch_max_wait_ms_virtual_partition: 1000
+                  fetch_min_bytes_virtual_partition: 1000000                  
+                alloy_filters:
+                  {{ alloy_filters |indent(18) }}
+            vm_config:
+              runtime: "envoy.wasm.runtime.wavm"
+              vm_id: "alloy"
+              code:
+                local:
+                  filename: "/etc/alloy.wasm"
+              allow_precompiled: true    
+      - name: tcp
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+          stat_prefix: stats_alloy
+          cluster: kafka
+  clusters:
+  - name: kafka
+    connect_timeout: 5s
+    type: LOGICAL_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: kafka
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: {{ kafka_address }}
+                port_value: 9093

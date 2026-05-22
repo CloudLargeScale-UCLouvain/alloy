@@ -1,0 +1,119 @@
+version: "3.8"
+services:
+  jobmanager:
+    image: donaschmitz/alloy-verif:1.16.2
+    ports:
+      - "8081:8081"
+      - "6123:6123"
+    command: jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+      - | 
+        FLINK_PROPERTIES=
+        metrics.reporters: prom
+        state.backend: rocksdb
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory 
+        metrics.reporter.prom.port: 9249
+        cluster.evenly-spread-out-slots: true
+        env.java.opts: "--add-opens java.base/java.lang=ALL-UNNAMED"
+        ${DEBUG:-}
+    networks:
+      - alloy-test_default
+    deploy:
+      placement:
+        constraints:
+        - node.labels.tier==jobmanager
+  taskmanager:
+    image: donaschmitz/alloy-verif:1.16.2
+    privileged: true
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    links:
+      - "jobmanager:jobmanager"
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+      - | 
+        FLINK_PROPERTIES=
+        taskmanager.numberOfTaskSlots: ${NUM_TS:-1}
+        state.backend: rocksdb
+        metrics.reporters: prom
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory 
+        metrics.reporter.prom.port: 9249
+        env.java.opts: "--add-opens java.base/java.lang=ALL-UNNAMED"
+        ${DEBUG:-}       
+    networks:
+      - alloy-test_default      
+    deploy:
+      endpoint_mode: dnsrr
+      replicas: ${NUM_TM:-5}
+      resources:
+        limits:
+          cpus: ${NUM_CPU:-2} # $((${NUM_TS} + 1))
+          #memory: 2G
+      placement:
+        constraints:     
+        - node.labels.tier==taskmanager
+  zookeeper-edge1:
+    image: zookeeper:latest
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+    networks:
+      - alloy-test_default      
+    deploy:
+      endpoint_mode: dnsrr
+      placement:
+        constraints:     
+        - node.labels.tier==kafka1
+
+  kafka-edge1:
+    image: grosinosky/kafka:3.0.2
+    depends_on:
+      - zookeeper-edge1
+    environment: # https://rmoff.net/2018/08/02/kafka-listeners-explained/
+      KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper-edge1:2181
+      #KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://:9092,PROXY://0.0.0.0:9093,OUTSIDE://0.0.0.0:9095,PROXY_PASSTHROUGH://0.0.0.0:9096
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://:9092,PROXY://envoy1:9093,OUTSIDE://localhost:9095,PROXY_PASSTHROUGH://envoy1:9096
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,PROXY:PLAINTEXT,OUTSIDE:PLAINTEXT,PROXY_PASSTHROUGH:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_NUM_PARTITIONS: ${NUM_PARTITIONS:-2}
+    networks:
+      - alloy-test_default      
+    deploy:
+      endpoint_mode: dnsrr
+      placement:
+        constraints:     
+        - node.labels.tier==kafka1
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    container_name: kafka-ui
+    ports:
+      - "8082:8080"
+    restart: always
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=edge1
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka-edge1:9092
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper-edge1:2181 
+    networks:
+      - alloy-test_default 
+    deploy:
+      placement:
+        constraints:     
+        - node.labels.tier==injector
+  kafka-exporter:
+    image: danielqsj/kafka-exporter 
+    command: ["--kafka.server=kafka-edge1:9092", "--kafka.version=3.0.2"]
+    ports:
+      - 9308:9308
+    networks:
+      - alloy-test_default 
+    deploy:
+      placement:
+        constraints:     
+        - node.labels.tier==injector
+networks:
+  alloy-test_default:
+    name: alloy-test_default  
+    external: true

@@ -1,0 +1,20 @@
+[package]
+name = "routing"
+version = "0.1.0"
+authors = ["Guillaume Rosinosky <guillaumerosinosky@yahoo.fr>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bytes = "1"
+serde_yaml = "0.9.34"
+serde = { version = "1.0.197", features = ["derive"] }
+log = "0.4"
+regex = "1.10.4"
+lazy_static = "1.4.0"
+
+[dev-dependencies]
+log = "0.4"
+rand = "0.8.5"
+

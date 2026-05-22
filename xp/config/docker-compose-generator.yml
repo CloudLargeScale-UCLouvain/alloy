@@ -1,0 +1,56 @@
+version: "3.8"
+services:
+  generator-jobmanager:
+    image: flink:${FLINK_VERSION:-1.16}
+    ports:
+      - "18081:8081"
+      - "16123:6123"
+    command: jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=generator-jobmanager
+      - | 
+        FLINK_PROPERTIES=
+        metrics.reporters: prom
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory 
+        metrics.reporter.prom.port: 9249
+        cluster.evenly-spread-out-slots: true    
+        ${DEBUG:-}           
+    networks:
+      - alloy-test_default
+    deploy:
+      placement:
+        constraints:     
+        - node.labels.tier==jobmanager
+  generator-taskmanager:
+    image: flink:${FLINK_VERSION:-1.16}
+    privileged: true
+    depends_on:
+      - generator-jobmanager
+    command: taskmanager
+    links:
+      - "generator-jobmanager:generator-jobmanager"
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=generator-jobmanager
+      - | 
+        FLINK_PROPERTIES=
+        taskmanager.numberOfTaskSlots: ${NUM_TS:-2}
+        metrics.reporters: prom
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory 
+        metrics.reporter.prom.port: 9249
+        rest.flamegraph.enabled: true
+    networks:
+      - alloy-test_default      
+    deploy:
+      endpoint_mode: dnsrr
+      replicas: ${NUM_TM:-4}
+      resources:
+        limits:
+          cpus: '4' # $((${NUM_TS} + 1))
+          #memory: 350M    
+      placement:
+        constraints:     
+        - node.labels.tier==injector   
+networks:
+  alloy-test_default:
+    name: alloy-test_default  
+    external: true
